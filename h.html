@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>I Love You Heart</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #000; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
+        #wrap { position: relative; }
+        #glowCanvas { position: absolute; top: 0; left: 0; filter: blur(6px); opacity: 0.6; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+    <div id="wrap">
+        <canvas id="glowCanvas"></canvas>
+        <canvas id="mainCanvas"></canvas>
+    </div>
+
+    <script>
+        const main = document.getElementById('mainCanvas');
+        const glow = document.getElementById('glowCanvas');
+        const mCtx = main.getContext('2d');
+        const gCtx = glow.getContext('2d');
+        
+        let W, H, cx, cy, sc;
+        const NL = 10;
+        const text = "I LOVE YOU ";
+        const TL = text.length;
+        let layerData = [];
+        let time = 0;
+        let prev = 0;
+
+        function hx(t) { return 16 * Math.sin(t) ** 3; }
+        function hy(t) { return -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)); }
+
+        function buildLayers() {
+            layerData = [];
+            for (let li = 0; li < NL; li++) {
+                const sf = 1.0 - (li / NL) * 0.85;
+                const np = Math.floor(130 - li * 5);
+                const spd = (0.25 + (li * 0.037)) * (li % 2 === 0 ? -1 : 1);
+                const fs = Math.max(12, 20 - li * 0.8);
+                const alpha = 0.5 + (1 - li / NL) * 0.5;
+                
+                const px = new Float32Array(np);
+                const py = new Float32Array(np);
+                const ag = new Float32Array(np);
+                
+                for (let i = 0; i < np; i++) {
+                    const t = (i / np) * Math.PI * 2;
+                    const t2 = ((i + 1) / np) * Math.PI * 2;
+                    px[i] = hx(t) * sf * sc + cx;
+                    py[i] = hy(t) * sf * sc + cy;
+                    ag[i] = Math.atan2(hy(t2) - hy(t), hx(t2) - hx(t));
+                }
+                layerData.push({ np, spd, fs, alpha, px, py, ag });
+            }
+        }
+
+        function resize() {
+            W = main.width = glow.width = window.innerWidth;
+            H = main.height = glow.height = window.innerHeight;
+            cx = W / 2;
+            cy = H / 2;
+            sc = Math.min(W, H) / 36;
+            buildLayers();
+        }
+
+        function draw(now) {
+            const dt = (now - prev) * 0.001;
+            prev = now;
+
+            if (dt < 0.1) {
+                time += dt * 0.5;
+                mCtx.clearRect(0, 0, W, H);
+                gCtx.clearRect(0, 0, W, H);
+
+                for (let li = 0; li < NL; li++) {
+                    const L = layerData[li];
+                    const off = time * L.spd * 35;
+                    const hue = 310 + Math.sin(time * 0.8 + li * 0.5) * 20;
+                    const lgt = 55 + Math.sin(time * 1.5 + li) * 15;
+                    const col = `hsla(${hue},100%,${lgt}%,${L.alpha})`;
+
+                    mCtx.font = gCtx.font = `bold ${L.fs}px Arial`;
+                    mCtx.fillStyle = gCtx.fillStyle = col;
+                    mCtx.textAlign = 'center';
+                    mCtx.textBaseline = 'middle';
+
+                    for (let i = 0; i < L.np; i++) {
+                        const idx = Math.floor(i + off) % TL;
+                        const charIdx = (idx + TL) % TL;
+                        const x = L.px[i];
+                        const y = L.py[i];
+                        const cos = Math.cos(L.ag[i]);
+                        const sin = Math.sin(L.ag[i]);
+
+                        mCtx.setTransform(cos, sin, -sin, cos, x, y);
+                        mCtx.fillText(text[charIdx], 0, 0);
+                        gCtx.setTransform(cos, sin, -sin, cos, x, y);
+                        gCtx.fillText(text[charIdx], 0, 0);
+                    }
+                }
+                mCtx.setTransform(1, 0, 0, 1, 0, 0);
+                gCtx.setTransform(1, 0, 0, 1, 0, 0);
+            }
+            requestAnimationFrame(draw);
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+        requestAnimationFrame(draw);
+    </script>
+</body>
+</html>
